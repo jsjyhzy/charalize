@@ -1,82 +1,36 @@
-from string import ascii_letters, digits, punctuation
+from abc import ABC, abstractmethod
+from warnings import warn
 
-import numpy
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
-from sklearn import metrics
+import numpy as np
+from PIL import Image, ImageDraw, ImageFont
 
-from char import ALL
-
-
-def vec(im):
-    return numpy.array(im).flatten()
+from char import *
 
 
-def chunks(l, n):
-    """Yield successive n-sized chunks from l."""
-    for i in range(0, len(l), n):
-        yield l[i:i + n]
-
-
-class Preprocess:
-    def __init__(self, path, picesize):
-        self.im = Image.open(path)
-        self.picesize = picesize
-
-    @property
-    def size(self):
-        return self.im.size
-
-    @property
-    def picecount(self):
-        imgwidth, imgheight = self.size
-        width, height = self.picesize
-        return imgwidth // width, imgheight // height
-
-    def enhance_edge(self, ratio=0.5):
-        self.im = Image.blend(self.im,
-                              self.im.filter(ImageFilter.EDGE_ENHANCE), ratio)
-
-    def enhance_blur(self, radius=2):
-        self.im = self.im.filter(ImageFilter.GaussianBlur(radius=radius))
-
-    def crop(self):
-        width, height = self.picesize
-        wcount, hcount = self.picecount
-        for i in range(hcount):
-            for j in range(wcount):
-                part = self.im.crop((
-                    j * width,
-                    i * height,
-                    (j + 1) * width,
-                    (i + 1) * height,
-                ))
-                part = part.convert('L')
-                yield part
-
-    def vectors(self):
-        return numpy.vstack([vec(i) for i in self.crop()])
-
-
-class Charalize:
+class CharalizeBase(ABC):
     def __init__(self,
+                 image,
                  letters=ALL,
-                 fontpath='NotoSansCJK-Regular.ttc',
-                 fontsize=12,
-                 spacing=0):
-        self.letters = letters
-        self.spacing = spacing
-        self._fontargs = (fontpath, fontsize)
+                 font=('NotoSansCJK-Regular.ttc', 12),
+                 spacing=0,
+                 *args,
+                 **kwargs):
+        if isinstance(image, Image.Image):
+            self.im = image
+        else:
+            self.im = Image.open(image)
+
+        self._letters = letters
+        self._spacing = spacing
+        self._fontargs = font
+
         fontpx = (0, 0)
-        for letter in self.letters:
+        for letter in self._letters:
             size = self.font.getsize(letter)
+            if fontpx[0] != size[0] and fontpx != (0, 0):
+                warn('Different letter width detected.')
             fontpx = (max(fontpx[0], size[0]), max(fontpx[1], size[1]))
-        self.fontpx = (fontpx[0], fontpx[1] + spacing)
-        self.ref = numpy.vstack([
-            vec(
-                self._render(
-                    letter, self.fontpx, ground=255, mode='L', fill=0))
-            for letter in self.letters
-        ])
+        self._fontpx = (fontpx[0], fontpx[1] + spacing)
 
     @property
     def font(self):
@@ -84,19 +38,97 @@ class Charalize:
             setattr(self, '_font', ImageFont.truetype(*self._fontargs))
         return getattr(self, '_font')
 
-    def _render(self, text, imagesize, mode, fill, ground, spacing=0):
+    @property
+    def size(self):
+        return self.im.size
+
+    @property
+    def fontsize(self):
+        return self._fontpx
+
+    @property
+    def lettersimg(self):
+        return [self.render(letter, self.fontsize) for letter in self._letters]
+
+    @property
+    def picescount(self):
+        imgwidth, imgheight = self.size
+        width, height = self.fontsize
+        return imgwidth // width, imgheight // height
+
+    def render(self, text, imagesize, mode='L', fill=0, ground=255, spacing=0):
         img = Image.new(mode=mode, size=imagesize, color=ground)
         draw = ImageDraw.Draw(img)
         draw.multiline_text(
             xy=(0, 0), text=text, font=self.font, fill=fill, spacing=spacing)
         return img
 
-    def transform(self, imagepath, metric='euclidean'):
-        pro = Preprocess(imagepath, self.fontpx)
-        pro.enhance_edge()
-        vecs = pro.vectors()
-        ans = metrics.pairwise_distances_argmin(vecs, self.ref, metric=metric)
-        wcnt, _ = pro.picecount
+    def split(self, letterlist):
+        return [
+            ''.join(j) for j in [
+                letterlist[i:i + self.picescount[0]]
+                for i in range(0, len(letterlist), self.picescount[0])
+            ]
+        ]
 
-        return '\n'.join(
-            [''.join(i) for i in chunks([self.letters[i] for i in ans], wcnt)])
+    @abstractmethod
+    def transform(self, *args, **kwargs):
+        pass
+
+
+class Blockways(CharalizeBase):
+    @property
+    def blocks(self):
+        img = self.im.convert('L')
+        width, height = self.fontsize
+        wcount, hcount = self.picescount
+        stacks = []
+        for i in range(hcount):
+            for j in range(wcount):
+                stacks.append(
+                    np.array(
+                        img.crop((
+                            j * width,
+                            i * height,
+                            (j + 1) * width,
+                            (i + 1) * height,
+                        ))).flatten())
+        return np.vstack(stacks)
+
+    @property
+    def ref(self):
+        return np.vstack([np.array(img).flatten() for img in self.lettersimg])
+
+    def transform(self, metric='euclidean', metric_kwargs=None):
+        from sklearn import metrics
+        minidx = metrics.pairwise_distances_argmin(
+            self.blocks, self.ref, metric=metric, metric_kwargs=metric_kwargs)
+        return '\n'.join(self.split([self._letters[i] for i in minidx]))
+
+
+class Pixelways(CharalizeBase):
+    @property
+    def pixel(self):
+        from PIL.Image import LANCZOS
+        return np.array(
+            self.im.convert('L').resize(
+                self.picescount,
+                resample=LANCZOS,
+            )).flatten()
+
+    @property
+    def ref(self):
+        from PIL.Image import LANCZOS
+        luma = np.array([
+            i.resize(
+                (1, 1),
+                resample=LANCZOS,
+            ).getpixel((0, 0)) for i in self.lettersimg
+        ])
+        mapper = []
+        for i in range(256):
+            mapper.append(self._letters[np.argmin(np.square(luma - i))])
+        return np.array(mapper)
+
+    def transform(self):
+        return '\n'.join(self.split(self.ref[self.pixel]))

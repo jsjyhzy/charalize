@@ -1,24 +1,16 @@
-from PIL import Image
+from charalize import Blockways, Pixelways
 
-from charalize import ALL, FILE
+FILE = 'Shirakamifubuki.jpg'
 
+if __name__ == "__main__":
+    with open('transform_luma_based.txt', 'w+') as fp:
+        fp.write(Pixelways(FILE, spacing=3).transform())
 
-def legency():
-    from legency import Charalize
-    with open('tarnsform_luma_based.txt', 'w+') as fp:
-        fp.write(Charalize(spacing=5).transform_C(Image.open(FILE)))
+    with open('transform_euclidean_distance_based.txt', 'w+') as fp:
+        fp.write(Blockways(FILE, spacing=3).transform(metric='euclidean'))
 
+    with open('transform_cosine_distance_based.txt', 'w+') as fp:
+        fp.write(Blockways(FILE, spacing=3).transform(metric='cosine'))
 
-def newone():
-    from charalize import Charalize
-    with open('tarnsform_euclidean_distance_based.txt', 'w+') as fp:
-        fp.write(Charalize(spacing=3).transform(FILE, metric='euclidean'))
-
-def wtf():
-    from charalize import Charalize
-    with open('tarnsform_hamming_distance_based.txt', 'w+') as fp:
-        fp.write(Charalize(spacing=3).transform(FILE, metric='hamming'))
-
-legency()
-newone()
-wtf()
+    with open('transform_hamming_distance_based.txt', 'w+') as fp:
+        fp.write(Blockways(FILE, spacing=3).transform(metric='hamming'))

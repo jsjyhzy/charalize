@@ -1,35 +1,20 @@
-from string import ascii_letters, digits, punctuation
+'''char.py
 
+Define the fullwidth characters
+'''
 
-def strB2Q(ustring):
-    """半角转全角"""
-    rstring = ""
-    for uchar in ustring:
-        inside_code = ord(uchar)
-        if inside_code == 32:
-            inside_code = 12288
-        elif 32 <= inside_code <= 126:
-            inside_code += 65248
+SPACE = chr(12288)
 
-        rstring += chr(inside_code)
-    return rstring
+# Ref
+# http://www.unicode.org/charts/PDF/UFF00.pdf
+EN = ''.join([chr(i) for i in range(65281, 65375)])
 
+# Ref
+# http://www.unicode.org/charts/PDF/U3040.pdf
+# http://www.unicode.org/charts/PDF/U30A0.pdf
+JP = ''.join([chr(i) for i in range(12353, 12439)] +
+             [chr(i) for i in range(12449, 12539)])
 
-EN = strB2Q(ascii_letters) + strB2Q(digits) + strB2Q(punctuation) + strB2Q(' ')
+BOX = ''.join([chr(i) for i in range(9472, 9600)])
 
-JP = ''.join([
-    'あ', 'か', 'さ', 'た', 'な', 'は', 'ま', 'や', 'ら', 'わ', 'ん', 'い', 'き', 'し', 'ち',
-    'に', 'ひ', 'み', 'り', 'う', 'く', 'す', 'つ', 'ぬ', 'ふ', 'む', 'ゆ', 'る', 'え', 'け',
-    'せ', 'て', 'ね', 'へ', 'め', 'れ', 'お', 'こ', 'そ', 'と', 'の', 'ほ', 'も', 'よ', 'ろ',
-    'を', 'が', 'ざ', 'だ', 'ば', 'ぱ', 'ぎ', 'じ', 'ぢ', 'び', 'ぴ', 'ぐ', 'ず', 'づ', 'ぶ',
-    'ぷ', 'げ', 'ぜ', 'で', 'べ', 'ぺ', 'ご', 'ぞ', 'ど', 'ぼ', 'ぽ', 'ア', 'カ', 'サ', 'タ',
-    'ナ', 'ハ', 'マ', 'ャ', 'ラ', 'ヮ', 'ン', 'イ', 'キ', 'シ', 'チ', 'ニ', 'ヒ', 'ミ', 'リ',
-    'ウ', 'ク', 'ス', 'ツ', 'ヌ', 'フ', 'ム', 'ュ', 'ル', 'エ', 'ヶ', 'セ', 'テ', 'ネ', 'ヘ',
-    'メ', 'レ', 'オ', 'コ', 'ソ', 'ト', 'ノ', 'ホ', 'モ', 'ョ', 'ロ', 'ヲ', 'ガ', 'ザ', 'ダ',
-    'バ', 'パ', 'ギ', 'ジ', 'ヂ', 'ビ', 'ピ', 'グ', 'ズ', 'ヅ', 'ブ', 'プ', 'ゲ', 'ゼ', 'デ',
-    'ベ', 'ペ', 'ゴ', 'ゾ', 'ド', 'ボ', 'ポ'
-])
-
-BOX = ''.join([chr(i) for i in range(9472, 9599 + 1)])
-
-ALL = EN + JP + BOX
+ALL = SPACE + EN + JP + BOX
